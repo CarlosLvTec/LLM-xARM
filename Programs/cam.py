@@ -3,7 +3,7 @@ import numpy as np
 
 # Start the webcam
 cap = cv2.VideoCapture(1)
-
+'''
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -43,3 +43,6 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+'''
+
+print("hola mundo")
