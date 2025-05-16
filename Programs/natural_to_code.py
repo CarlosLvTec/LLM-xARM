@@ -1,37 +1,7 @@
 from ollama import ChatResponse, chat
 from random import randint
-
-def get_layout():
-  '''
-  Codigo para obtener el layout de nuestro espacio de trabajo
-  Número de objetos y sus características
-  Acomodados de izquierda a derecha
-  
-  n: int -> número de objetos
-  c: lista de strings con características
-  pos: lista de tuplas de posiciones
-  '''
-  return [n,c,pos]
-
-def set_position(position):
-  '''
-  Toma la posición actual del robot con respecto
-  a la esquina inferior izquierda y lo lleva a otra
-  posición determinada
-  '''
-  pass
-
-def grab():
-  '''
-  Rutina para tomar un objeto
-  '''
-  pass
-
-def drop():
-  '''
-  Rutina para dejar un objeto
-  '''
-  pass
+from xarm_basic import set_position, grab, drop
+from quaroni_vision import get_layout
 
 def move(characteristics, end_position):
   '''
