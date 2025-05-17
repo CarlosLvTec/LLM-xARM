@@ -25,7 +25,16 @@ def move(characteristics, end_position):
 
 def add_two_numbers(a: int, b: int) -> int:
   """
-  Add two numbers
+  Add two numberseccem@ubuntu:~/llm_xarm/LLM-xARM$ git push
+To github.com:CarlosLvTec/LLM-xARM.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'git@github.com:CarlosLvTec/LLM-xARM.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. Integrate the remote changes (e.g.
+hint: 'git pull ...') before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+teccem@ubuntu:~/llm_xarm/LLM-xARM$ 
+
 
   Args:
     a (int): The first number
@@ -77,7 +86,7 @@ available_functions = {
 }
 
 response: ChatResponse = chat(
-  'mistral',
+  'xarm_mistral',
   messages=messages,
   tools=[add_two_numbers, subtract_two_numbers_tool],
 )
