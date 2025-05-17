@@ -131,7 +131,7 @@ class RobotMain(object):
     # Robot Main Run
     def find_red(self):
 
-        cap = cv2.VideoCapture(1)
+        cap = cv2.VideoCapture(3)
 
         while True:
             ret, frame = cap.read()
