@@ -1,0 +1,136 @@
+"""
+Camera Pre-Calibration Script for Robot Coordinate Mapping
+----------------------------------------------------------
+Detects a blue line used as a calibration reference. Converts pixel positions
+to real-world robot coordinates using a known reference length.
+
+Reference:
+- The blue line is 190mm long.
+- The circle at the end of the line is at (x=255.0 mm, y=2.4 mm).
+"""
+
+import cv2
+import numpy as np
+from collections import deque
+
+# === Constants ===
+KNOWN_REAL_LENGTH_MM = 190
+REAL_WORLD_REF_POINT = (255.0, 2.4)  # Robot coords at the rightmost circle
+
+# === Trackbar Setup ===
+def nothing(x): pass
+
+def create_camera_controls(window_name):
+    cv2.createTrackbar("Brightness", window_name, 128, 255, nothing)
+    cv2.createTrackbar("Contrast", window_name, 128, 255, nothing)
+    cv2.createTrackbar("Saturation", window_name, 128, 255, nothing)
+    cv2.createTrackbar("Exposure", window_name, 150, 200, nothing)
+    cv2.createTrackbar("Gain", window_name, 0, 128, nothing)
+
+# === Line Detection Smoothing ===
+line_buffer = deque(maxlen=10)
+
+def detect_blue_line_endpoints(image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([90, 50, 50])
+    upper_blue = np.array([130, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    kernel = np.ones((3, 3), np.uint8)
+    mask = cv2.dilate(mask, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None, None
+
+    largest = max(contours, key=cv2.contourArea)
+    rect = cv2.minAreaRect(largest)
+    box = cv2.boxPoints(rect)
+    box = box.astype(np.intp)  # Replaces np.int0
+
+    sorted_box = sorted(box, key=lambda p: p[1])  # Sort by y
+    pt1 = tuple(sorted_box[0])
+    pt2 = tuple(sorted_box[-1])
+
+    line_buffer.append((pt1, pt2))
+    avg_pt1 = tuple(np.mean([p[0] for p in line_buffer], axis=0).astype(int))
+    avg_pt2 = tuple(np.mean([p[1] for p in line_buffer], axis=0).astype(int))
+
+    return avg_pt1, avg_pt2
+
+# === Pixel to Real-World Mapping ===
+def build_coordinate_mapping(pixel1, pixel2, real_origin=REAL_WORLD_REF_POINT):
+    if pixel1[0] > pixel2[0]:
+        pixel1, pixel2 = pixel2, pixel1
+
+    pixel_dist = np.linalg.norm(np.array(pixel2) - np.array(pixel1))
+    pixel_to_mm = KNOWN_REAL_LENGTH_MM / pixel_dist
+
+    dx_pix = pixel2[0] - pixel1[0]
+    dy_pix = pixel2[1] - pixel1[1]
+    angle = np.arctan2(dy_pix, dx_pix)
+
+    def mapper(px, py):
+        dx = px - pixel2[0]
+        dy = py - pixel2[1]
+        dx_rot = (dx * np.cos(angle) + dy * np.sin(angle)) * pixel_to_mm
+        dy_rot = (-dx * np.sin(angle) + dy * np.cos(angle)) * pixel_to_mm
+        return (real_origin[0] + dx_rot, real_origin[1] + dy_rot)
+
+    return mapper
+
+# === Main Calibration Function ===
+def calibrate_camera_live_preview(camera_id=3, output_path="coordinate_mapper.npy"):
+    cap = cv2.VideoCapture(camera_id)
+    mapper = None
+    window_name = "Calibration Preview"
+    cv2.namedWindow(window_name)
+    create_camera_controls(window_name)
+
+    while True:
+        # Apply camera settings
+        brightness = cv2.getTrackbarPos("Brightness", window_name)
+        contrast = cv2.getTrackbarPos("Contrast", window_name)
+        saturation = cv2.getTrackbarPos("Saturation", window_name)
+        exposure = cv2.getTrackbarPos("Exposure", window_name) - 150
+        gain = cv2.getTrackbarPos("Gain", window_name)
+
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+        cap.set(cv2.CAP_PROP_CONTRAST, contrast)
+        cap.set(cv2.CAP_PROP_SATURATION, saturation)
+        cap.set(cv2.CAP_PROP_EXPOSURE, float(exposure))
+        cap.set(cv2.CAP_PROP_GAIN, gain)
+
+        ret, frame = cap.read()
+        if not ret:
+            print("Camera frame not available")
+            break
+
+        pt1, pt2 = detect_blue_line_endpoints(frame)
+        if pt1 and pt2:
+            cv2.line(frame, pt1, pt2, (255, 0, 0), 3)
+            cv2.circle(frame, pt2, 5, (0, 255, 0), -1)
+            mapper = build_coordinate_mapping(pt1, pt2)
+            cv2.putText(frame, "Calibration Ready — Press 's' to save", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        else:
+            cv2.putText(frame, "Detecting blue calibration line...", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        cv2.imshow(window_name, frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('s') and mapper:
+            np.save(output_path, mapper, allow_pickle=True)
+            print(f"Mapper saved to {output_path}")
+            break
+        elif key == 27:
+            print("Calibration canceled.")
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+# === Entry Point ===
+if __name__ == '__main__':
+    calibrate_camera_live_preview()

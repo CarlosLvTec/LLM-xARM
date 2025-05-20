@@ -55,9 +55,9 @@ def get_layout(frame):
   sorted_objects = sorted(zip(object_positions, object_colors), key=lambda x: x[0][0])
   positions_sorted, colors_sorted = zip(*sorted_objects) if sorted_objects else ([], [])
 
-  cv2.imshow("Detected Objects", frame)
+  """cv2.imshow("Detected Objects", frame)
   cv2.waitKey(0)  # Wait until a key is pressed
-  cv2.destroyAllWindows()
+  cv2.destroyAllWindows()"""
 
   return frame, list(positions_sorted), list(colors_sorted)
 
@@ -84,6 +84,10 @@ def live_camera_with_key_capture(cam_index=2):
         if key == ord('q') or key == 27:  # q or Esc to quit
             break
         elif key == 32:  # Spacebar to capture and detect
+            '''processed_frame, circles = detect_blue_circles_in_frame(frame.copy())
+            print("Blue Circles:", circles)
+            cv2.imshow("Detected Blue Circles", processed_frame)'''
+            
             processed_frame, positions, colors = get_layout(frame.copy())
             print("Positions:", positions)
             print("Colors:", colors)
@@ -96,8 +100,50 @@ def live_camera_with_key_capture(cam_index=2):
     cap.release()
     cv2.destroyAllWindows()
 
+
+def detect_blue_circles_in_frame(frame):
+    # Convert to HSV color space
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Define HSV range for blue
+    lower_blue = np.array([100, 150, 50])
+    upper_blue = np.array([140, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    # Optional: Clean up the mask
+    mask = cv2.GaussianBlur(mask, (9, 9), 2)
+
+    # Use Hough Circle Transform
+    circles = cv2.HoughCircles(
+        mask,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=30,
+        param1=50,
+        param2=30,
+        minRadius=5,
+        maxRadius=100
+    )
+
+    detected = []
+
+    # Draw circles if found
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        for (x, y, r) in circles[0, :]:
+            cv2.circle(frame, (x, y), r, (255, 0, 0), 2)      # Blue outer circle
+            cv2.circle(frame, (x, y), 2, (255, 255, 255), 3)  # White center dot
+            detected.append((x, y, r))
+
+    return frame, detected
+
 def translate_to_mm(pos):
-    pass
+    pos1 = (319,408)
+    pos2 = (325,151)
+    dif = pos1[1]-pos2[1]
+    mm = 190/dif
+    return mm
+
 
 
 if __name__ == "__main__":
