@@ -1,12 +1,12 @@
 import cv2
 import numpy as np
 
-'''def adjust_camera_settings(cap, contrast=0.5, brightness=0.5, exposure=-4, saturation=0.5, gain=0):
+def adjust_camera_settings(cap, contrast=0.5, brightness=0.5, exposure=-4, saturation=0.5, gain=0):
     cap.set(cv2.CAP_PROP_CONTRAST, contrast)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_EXPOSURE, exposure)
     cap.set(cv2.CAP_PROP_SATURATION, saturation)
-    cap.set(cv2.CAP_PROP_GAIN, gain)'''
+    cap.set(cv2.CAP_PROP_GAIN, gain)
 
 def get_layout(frame):
   '''
@@ -62,7 +62,7 @@ def get_layout(frame):
   return frame, list(positions_sorted), list(colors_sorted)
 
 
-def live_camera_with_key_capture(cam_index=2):
+def live_camera_with_key_capture(cam_index=0):
     cap = cv2.VideoCapture(cam_index)
     if not cap.isOpened():
         print(f"Error: Could not open camera {cam_index}")
@@ -101,48 +101,13 @@ def live_camera_with_key_capture(cam_index=2):
     cv2.destroyAllWindows()
 
 
-def detect_blue_circles_in_frame(frame):
-    # Convert to HSV color space
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # Define HSV range for blue
-    lower_blue = np.array([100, 150, 50])
-    upper_blue = np.array([140, 255, 255])
-    mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-    # Optional: Clean up the mask
-    mask = cv2.GaussianBlur(mask, (9, 9), 2)
-
-    # Use Hough Circle Transform
-    circles = cv2.HoughCircles(
-        mask,
-        cv2.HOUGH_GRADIENT,
-        dp=1.2,
-        minDist=30,
-        param1=50,
-        param2=30,
-        minRadius=5,
-        maxRadius=100
-    )
-
-    detected = []
-
-    # Draw circles if found
-    if circles is not None:
-        circles = np.uint16(np.around(circles))
-        for (x, y, r) in circles[0, :]:
-            cv2.circle(frame, (x, y), r, (255, 0, 0), 2)      # Blue outer circle
-            cv2.circle(frame, (x, y), 2, (255, 255, 255), 3)  # White center dot
-            detected.append((x, y, r))
-
-    return frame, detected
-
 def translate_to_mm(pos):
     pos1 = (319,408)
     pos2 = (325,151)
     dif = pos1[1]-pos2[1]
     mm = 190/dif
-    return mm
+    pos_mm = (pos[1]*mm, (pos[0]-1280/2)*mm)
+    return pos_mm
 
 
 
