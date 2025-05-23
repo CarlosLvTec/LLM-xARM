@@ -83,6 +83,8 @@ def live_camera_with_key_capture(cam_index=0):
 
         if key == ord('q') or key == 27:  # q or Esc to quit
             break
+        elif key == ord('c'):
+            camera_cal(frame)
         elif key == 32:  # Spacebar to capture and detect
             '''processed_frame, circles = detect_blue_circles_in_frame(frame.copy())
             print("Blue Circles:", circles)
@@ -108,6 +110,40 @@ def translate_to_mm(pos):
     mm = 190/dif
     pos_mm = (pos[1]*mm, (pos[0]-1280/2)*mm)
     return pos_mm
+
+def camera_cal(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Invert image: black areas become white for thresholding
+    inverted = 255 - gray
+
+    # Threshold the image: only keep black/dark areas
+    _, thresh = cv2.threshold(inverted, 60, 255, cv2.THRESH_BINARY)
+
+    # Find contours
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Filter contours for squares
+    squares = []
+    for cnt in contours:
+        # Approximate shape
+        approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
+        area = cv2.contourArea(cnt)
+
+        if len(approx) == 4 and area > 100:  # 4 sides and not too small
+            # Optionally check for near-square shape
+            x, y, w, h = cv2.boundingRect(approx)
+            aspect_ratio = float(w) / h
+            if 0.9 <= aspect_ratio <= 1.1:
+                squares.append(approx)
+                cv2.drawContours(img, [approx], 0, (0, 255, 0), 2)
+                cx, cy = x + w // 2, y + h // 2
+                print(f"Detected black square at: center=({cx}, {cy}), size={w}x{h}")
+
+    # Show result
+    cv2.imshow("Detected Black Squares", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 

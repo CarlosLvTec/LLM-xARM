@@ -15,11 +15,11 @@ from xarm.wrapper import XArmAPI
 import time
 
 # Initial robot setup
-arm = XArmAPI('192.168.1.173', baud_checkset=False)
+"""arm = XArmAPI('192.168.1.173', baud_checkset=False)
 arm.motion_enable(True)
 arm.set_mode(0)
 arm.set_state(0)
-time.sleep(1)
+time.sleep(1)"""
 
 # Initial pick-up home position
 INIT_POS = [100, 0, 160]
