@@ -2,6 +2,8 @@ from random import randint
 from xarm_basic import set_position, grab, drop
 from quaroni_vision import get_layout
 from xarm.wrapper import XArmAPI
+from ollama import chat
+from ollama import ChatResponse
 
 def translate_to_mm(pos):
     pos1 = (319,408)
@@ -40,7 +42,7 @@ def move(characteristics, end_position,arm):
       '''
       drop()
 
-  return "Complete"
+  return "Complete" 
 
 
 ip = "192.168.1.173"
@@ -51,3 +53,4 @@ arm.set_state(state=0)
 
 
 print(move("red",(130,-90),arm))
+

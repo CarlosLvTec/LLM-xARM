@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import os
+import pickle
 
 def adjust_camera_settings(cap, contrast=0.5, brightness=0.5, exposure=-4, saturation=0.5, gain=0):
     cap.set(cv2.CAP_PROP_CONTRAST, contrast)
@@ -24,8 +26,8 @@ def get_layout(frame):
   # Define HSV ranges for red, green, and blue
   color_ranges = {
     'red': [([0, 120, 70], [10, 255, 255]), ([170, 120, 70], [180, 255, 255])],
-  #  'green': [([36, 25, 25], [86, 255, 255])],
-  #  'blue': [([94, 80, 2], [126, 255, 255])]
+    #'green': [([36, 25, 25], [86, 255, 255])],
+    'green': [([40, 90, 100], [80, 255, 255])]
   }
 
   object_positions = []
@@ -78,18 +80,18 @@ def live_camera_with_key_capture(cam_index=0):
 
         # Show live feed
         cv2.imshow("Live Camera", frame)
-
+#'green': [([36, 25, 25], [86, 255, 255])],
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord('q') or key == 27:  # q or Esc to quit
             break
         elif key == ord('c'):
-            camera_cal(frame)
+            cap.release()
+            camera_cal(cam_index)
+            cap = cv2.VideoCapture(cam_index)
+            if not cap.isOpened():
+                print(f"Error: Could not open camera {cam_index}")
         elif key == 32:  # Spacebar to capture and detect
-            '''processed_frame, circles = detect_blue_circles_in_frame(frame.copy())
-            print("Blue Circles:", circles)
-            cv2.imshow("Detected Blue Circles", processed_frame)'''
-            
             processed_frame, positions, colors = get_layout(frame.copy())
             print("Positions:", positions)
             print("Colors:", colors)
@@ -111,38 +113,57 @@ def translate_to_mm(pos):
     pos_mm = (pos[1]*mm, (pos[0]-1280/2)*mm)
     return pos_mm
 
-def camera_cal(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def camera_cal(cam_index):
+    cap = cv2.VideoCapture(cam_index)
+    
+    if not cap.isOpened():
+        print(f"Error: Could not open camera {cam_index}")
+        return
+    
+    values_for_x = []
+    values_for_y = []    
 
-    # Invert image: black areas become white for thresholding
-    inverted = 255 - gray
+    while True:
 
-    # Threshold the image: only keep black/dark areas
-    _, thresh = cv2.threshold(inverted, 60, 255, cv2.THRESH_BINARY)
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Failed to read frame.")
+            break
+        height = int(frame.shape[0])
+        width = int(frame.shape[1])
 
-    # Find contours
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.line(frame,(0,int(height/3)),(width,int(height/3)),(150,255,150),3) 
+        cv2.line(frame,(0,int(height*2/3)),(width,int(height*2/3)),(150,255,150),3) 
 
-    # Filter contours for squares
-    squares = []
-    for cnt in contours:
-        # Approximate shape
-        approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
-        area = cv2.contourArea(cnt)
+        cv2.line(frame,(int(width/3),0),(int(width/3),height),(150,255,150),3) 
+        cv2.line(frame,(int(width*2/3),0),(int(width*2/3),height),(150,255,150),3) 
 
-        if len(approx) == 4 and area > 100:  # 4 sides and not too small
-            # Optionally check for near-square shape
-            x, y, w, h = cv2.boundingRect(approx)
-            aspect_ratio = float(w) / h
-            if 0.9 <= aspect_ratio <= 1.1:
-                squares.append(approx)
-                cv2.drawContours(img, [approx], 0, (0, 255, 0), 2)
-                cx, cy = x + w // 2, y + h // 2
-                print(f"Detected black square at: center=({cx}, {cy}), size={w}x{h}")
+        # Show result
+        cv2.imshow("Calibration", frame)
 
-    # Show result
-    cv2.imshow("Detected Black Squares", img)
-    cv2.waitKey(0)
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == 32:
+            print("Quadrant", len(values_for_x)+1)
+            get_layout(frame)
+            processed_frame, positions, colors = get_layout(frame.copy())
+            values_for_x.append(positions[0][0]-positions[1][0])
+            values_for_y.append(positions[0][1]-positions[1][1])
+            print(values_for_x)
+            print(values_for_y)
+
+        if(len(values_for_x) == 9):
+            cap.release()
+            cv2.destroyAllWindows()
+
+            with open("/home/teccem/llm_xarm/calibration_values.txt", "wb") as file:
+                pickle.dump([values_for_x,values_for_y],file)
+            file.close()
+        
+        if key == 27:
+            break
+
+    cap.release()
     cv2.destroyAllWindows()
 
 
