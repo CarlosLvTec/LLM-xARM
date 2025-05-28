@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-
 from xarm.wrapper import XArmAPI
 
 def set_position(position,arm):
@@ -15,14 +14,23 @@ def set_position(position,arm):
   print(arm.get_position())
 
 
-def grab():
+def grab(arm):
   '''
-  Rutina para tomar un objeto
+  Rutina para tomar un objeto [90]
   '''
-  pass
+  z_actual = arm.get_position()
+  z_actual = z_actual[1][2]
+  #arm.set_suction_cup(True)
+  arm.set_position(z = 86,wait=True)
+  arm.set_position(z = z_actual, wait=True)
 
-def drop():
+def drop(arm):
   '''
   Rutina para dejar un objeto
   '''
-  pass
+  z_actual = arm.get_position()
+  z_actual = z_actual[1][2]
+  #No baja pq choca revisar si hay sensor
+  #arm.set_position(z = 90,wait=True)
+  arm.set_suction_cup(False)
+  arm.set_position(z = z_actual, wait=True)

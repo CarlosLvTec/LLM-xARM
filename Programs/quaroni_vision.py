@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import pickle
+import socket
 
 def adjust_camera_settings(cap, contrast=0.5, brightness=0.5, exposure=-4, saturation=0.5, gain=0):
     cap.set(cv2.CAP_PROP_CONTRAST, contrast)
@@ -69,37 +70,51 @@ def live_camera_with_key_capture(cam_index=0):
     if not cap.isOpened():
         print(f"Error: Could not open camera {cam_index}")
         return
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 12345))
+        s.listen()
+        print(f"Port {1234}...")
+        
+        conn, addr = s.accept()
+        with conn:
+            print(f"Connected from {addr}")
 
-    print("Press SPACE to capture and detect. Press 'q' to quit.")
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print("Error: Failed to read frame.")
+                    break
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Failed to read frame.")
-            break
+                # Show live feed
+                cv2.imshow("Live Camera", frame)
+        #'green': [([36, 25, 25], [86, 255, 255])],
+                key = cv2.waitKey(1) & 0xFF
 
-        # Show live feed
-        cv2.imshow("Live Camera", frame)
-#'green': [([36, 25, 25], [86, 255, 255])],
-        key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == 27:  # q or Esc to quit
+                    break
+                '''elif key == ord('c'):
+                    cap.release()
+                    camera_cal(cam_index)
+                    cap = cv2.VideoCapture(cam_index)
+                    if not cap.isOpened():
+                        print(f"Error: Could not open camera {cam_index}")'''
+                if key == 32:  # Spacebar to capture and detect
+                    processed_frame, positions, colors = get_layout(frame.copy())
+                    print("Positions:", positions)
+                    print("Colors:", colors)
 
-        if key == ord('q') or key == 27:  # q or Esc to quit
-            break
-        elif key == ord('c'):
-            cap.release()
-            camera_cal(cam_index)
-            cap = cv2.VideoCapture(cam_index)
-            if not cap.isOpened():
-                print(f"Error: Could not open camera {cam_index}")
-        elif key == 32:  # Spacebar to capture and detect
-            processed_frame, positions, colors = get_layout(frame.copy())
-            print("Positions:", positions)
-            print("Colors:", colors)
-
-            # Show detection result
-            cv2.imshow("Detected Objects", processed_frame)
-            cv2.waitKey(0)
-            cv2.destroyWindow("Detected Objects")
+                    # Show detection result
+                    cv2.imshow("Detected Objects", processed_frame)
+                    cv2.waitKey(0)
+                    cv2.destroyWindow("Detected Objects")
+                data = conn.recv(1024)
+                if len(data) > 0:
+                    processed_frame, positions, colors = get_layout(frame.copy())
+                    print("Positions:", positions)
+                    print("Colors:", colors)
+                    print("Getting layout:", data.decode())
+                    layout = [positions, colors]
+                    conn.sendall(str(layout).encode())
 
     cap.release()
     cv2.destroyAllWindows()
@@ -132,11 +147,11 @@ def camera_cal(cam_index):
         height = int(frame.shape[0])
         width = int(frame.shape[1])
 
-        cv2.line(frame,(0,int(height/3)),(width,int(height/3)),(150,255,150),3) 
-        cv2.line(frame,(0,int(height*2/3)),(width,int(height*2/3)),(150,255,150),3) 
+        cv2.line(frame,(0,int(height/3)),(width,int(height/3)),(255,255,255),3) 
+        cv2.line(frame,(0,int(height*2/3)),(width,int(height*2/3)),(255,255,255),3) 
 
-        cv2.line(frame,(int(width/3),0),(int(width/3),height),(150,255,150),3) 
-        cv2.line(frame,(int(width*2/3),0),(int(width*2/3),height),(150,255,150),3) 
+        cv2.line(frame,(int(width/3),0),(int(width/3),height),(255,255,255),3) 
+        cv2.line(frame,(int(width*2/3),0),(int(width*2/3),height),(255,255,255),3) 
 
         # Show result
         cv2.imshow("Calibration", frame)
@@ -145,12 +160,19 @@ def camera_cal(cam_index):
 
         if key == 32:
             print("Quadrant", len(values_for_x)+1)
-            get_layout(frame)
-            processed_frame, positions, colors = get_layout(frame.copy())
-            values_for_x.append(positions[0][0]-positions[1][0])
-            values_for_y.append(positions[0][1]-positions[1][1])
-            print(values_for_x)
-            print(values_for_y)
+            processed_frame, positions, colors = get_layout(frame)
+            print(colors)
+            print(positions)
+            if len(positions) == 2:
+                values_for_x.append(29/(positions[0][0]-positions[1][0]-width/2))
+                values_for_y.append(29/(positions[0][1]-positions[1][1]))
+                print(values_for_x)
+                print(values_for_y)
+            else:
+                print("Try again...")
+                cv2.imshow("Detected Objects", processed_frame)
+                cv2.waitKey(0)
+                cv2.destroyWindow("Detected Objects")
 
         if(len(values_for_x) == 9):
             cap.release()
@@ -159,6 +181,7 @@ def camera_cal(cam_index):
             with open("/home/teccem/llm_xarm/calibration_values.txt", "wb") as file:
                 pickle.dump([values_for_x,values_for_y],file)
             file.close()
+            break  
         
         if key == 27:
             break

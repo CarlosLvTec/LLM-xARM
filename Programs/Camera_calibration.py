@@ -1,81 +1,63 @@
 import cv2
 import numpy as np
+from ultralytics import YOLO
 
-# Checkerboard dimensions (number of INNER corners per row and column)
-CHECKERBOARD = (22, 17)  # You must adjust this to match your pattern
+# Define checkerboard dimensions (number of internal corners)
+CHECKERBOARD = (6, 9)  # 6 rows x 9 columns of internal corners
+SQUARE_SIZE = 0.02  # 2 cm in meters
 
-# Real-world square size in cm
-SQUARE_SIZE = 2.0
+# Termination criteria for corner refinement
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-# Prepare object points (3D points in real-world space)
-# For example, (0,0,0), (2,0,0), ..., assuming flat Z=0
-objp = np.zeros((CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
-objp[:, :2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
-objp *= SQUARE_SIZE
+# Create object points (3D real-world coordinates)
+objp = np.zeros((CHECKERBOARD[0]*CHECKERBOARD[1], 3), np.float32)
+objp[:, :2] = np.mgrid[0:CHECKERBOARD[1], 0:CHECKERBOARD[0]].T.reshape(-1, 2)
+objp *= SQUARE_SIZE  # Scale by 2 cm
 
-# Arrays to store 3D points (real world) and 2D points (image plane)
-objpoints = []  # 3D point in real world
-imgpoints = []  # 2D point in image plane
+# Arrays to store object points and image points
+objpoints = []  # 3D point in real-world
+imgpoints = []  # 2D points in image plane
 
-# Open webcam
+# Initialize camera
 cap = cv2.VideoCapture(0)
 
-# Collect calibration data
-print("Show the checkerboard pattern to the webcam.")
-collected = 0
-MAX_SAMPLES = 20
+# Camera calibration placeholders
+calibrated = False
+camera_matrix = None
+dist_coeffs = None
 
-while collected < MAX_SAMPLES:
+# Run until calibration and detection
+while True:
     ret, frame = cap.read()
-    if not ret:
-        continue
-
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Try to find the checkerboard corners
+    # Find the checkerboard corners
     ret_corners, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, None)
 
     if ret_corners:
-        # Refine corner location for better accuracy
-        corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1),
-                                    criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
-        imgpoints.append(corners2)
         objpoints.append(objp)
-        collected += 1
-        print(f"Collected {collected}/{MAX_SAMPLES}")
+        imgpoints.append(corners)
+
+        # Refine the corner locations
+        corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+
+        # Draw corners
         cv2.drawChessboardCorners(frame, CHECKERBOARD, corners2, ret_corners)
 
-    # Show current frame
-    cv2.imshow('Calibration Capture', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # If we collected enough views, calibrate the camera
+        if len(objpoints) >= 10 and not calibrated:
+            ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+                objpoints, imgpoints, gray.shape[::-1], None, None)
+            calibrated = True
+            print("Camera calibrated.")
+            print("Camera matrix:\n", camera_matrix)
+            print("Distortion coefficients:\n", dist_coeffs)
 
-cv2.destroyWindow('Calibration Capture')
+    # Show the frame
+    cv2.imshow('Checkerboard Detection', frame)
 
-# Perform calibration
-ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
-    objpoints, imgpoints, gray.shape[::-1], None, None
-)
-
-print("Calibration complete.")
-print("Camera matrix:\n", camera_matrix)
-print("Distortion coefficients:\n", dist_coeffs)
-
-# Start real-time undistortion
-print("Press 'q' to quit live feed.")
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # Undistort the frame using calibration results
-    undistorted = cv2.undistort(frame, camera_matrix, dist_coeffs)
-
-    # Show side-by-side comparison
-    combined = np.hstack((frame, undistorted))
-    cv2.imshow('Original (Left) vs Undistorted (Right)', combined)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1)
+    if key == 27:  # ESC to exit
         break
 
 cap.release()
